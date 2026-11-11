@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.settings">Настройки</h1>
+    <p class="section-sub">Язык, валюта и общая информация о приложении.</p>
+  </div>
+</section>
+
+<div class="card">
+  <div class="form-field" style="max-width:340px;">
+    <label data-i18n="settings.language">Язык</label>
+    <select id="lang-select" onchange="app.setLang()">
+      <option value="ru" data-i18n="language.ru">Русский</option>
+      <option value="en" data-i18n="language.en">English</option>
+    </select>
+  </div>
+  <div class="form-field" style="max-width:340px; margin-top:1rem;">
+    <label data-i18n="settings.currency">Базовая валюта</label>
+    <div style="font-size:0.86rem; color:var(--color-text-muted)">Текущая: <span id="cur-display">$ (USD)</span></div>
+    <div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:0.25rem">Валюта задаётся переменной окружения FINORA_BASE_CURRENCY.</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+  <h3 style="margin-bottom:0.75rem; font-size:1rem" data-i18n="settings.about">О приложении</h3>
+  <p style="font-size:0.88rem; color:var(--color-text-secondary);" data-i18n="about.privacy">Приватность first. Данные хранятся только локально.</p>
+  <p style="font-size:0.88rem; color:var(--color-text-secondary);" data-i18n="about.local">Локальное приложение, без регистрации и облака.</p>
+  <p style="font-size:0.8rem; color:var(--color-text-muted); margin-top:1rem">Finora v1.0.0 &bull; MIT License &bull; devilnevecry, 2026</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const sel = document.getElementById("lang-select");
+    sel.value = window.i18n.lang;
+    window.app = {
+      setLang: async function(){
+        const lang = sel.value;
+        await window.i18n.load(lang);
+        window.i18n.translateRoot(document);
+        const meta = document.querySelector('meta[name="app-language"]');
+        if(meta) meta.content = lang;
+        document.documentElement.setAttribute("lang", lang);
+        window.showSuccess({message: "Язык изменён"});
+      },
+    };
+    const res = await window.apiFetch("/api/settings");
+    const s = await res.json();
+    document.getElementById("cur-display").textContent = s.currency_symbol + " (" + s.base_currency + ")";
+  })();
+</script>
+{% endblock %}

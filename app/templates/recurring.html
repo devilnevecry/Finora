@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Повторяющиеся — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.recurring">Повторяющиеся транзакции</h1>
+    <p class="section-sub">Автоматическая генерация регулярных доходов и расходов.</p>
+  </div>
+  <button class="btn btn-primary btn-sm" id="btn-add-recurring" data-i18n="recurring.add">Добавить правило</button>
+  <button class="btn btn-secondary btn-sm" id="btn-process" data-i18n="recurring.process">Обработать задолженные</button>
+</section>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="common.description">Описание</th>
+          <th data-i18n="common.type">Тип</th>
+          <th data-i18n="common.amount">Сумма</th>
+          <th>Интервал</th>
+          <th data-i18n="common.date">Следующий запуск</th>
+          <th>Статус</th>
+          <th style="width:150px" data-i18n="common.action">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="recurring-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="rec-modal-backdrop"></div>
+<div class="modal" id="rec-modal" role="dialog" aria-modal="true">
+  <div class="modal-content">
+    <button class="modal-close" id="rec-modal-close" aria-label="Закрыть">✕</button>
+    <div class="modal-body" id="rec-modal-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const API = "/api/recurring";
+    const ACC_API = "/api/accounts";
+    const tbody = document.getElementById("recurring-tbody");
+
+    async function load(){
+      const res = await window.apiFetch(API);
+      const rules = await res.json();
+      tbody.innerHTML = "";
+      for (const r of rules) {
+        const tr = document.createElement("tr");
+        const activeCls = r.is_active ? "bg-green" : "bg-gray";
+        tr.innerHTML = `<td>${escape(r.description)}</td><td>${r.type}</td><td>${formatCurrency(r.amount_minor)}</td><td>${r.interval} ×${r.interval_count}</td><td>${escape(r.next_run_date)}</td><td><span class="badge ${activeCls}">${r.is_active ? 'Активно' : 'Приостановлено'}</span></td><td>
+          <button class="btn btn-sm btn-outline" onclick="app.editRec(${escape(JSON.stringify(r))})" data-i18n="common.edit">Ред.</button>
+          <button class="btn btn-sm ${r.is_active?'btn-danger':'btn-secondary'}" onclick="app.toggleRec(${r.id}, ${r.is_active})" data-i18n="${r.is_active?'recurring.pause':'recurring.resume'}">${r.is_active ? 'Пауза' : 'Возобновить'}</button>
+          <button class="btn btn-sm btn-danger" onclick="app.delRec(${r.id})" data-i18n="common.delete">Удал.</button>
+        </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    window.app = {
+      editRec: function(r){ openForm(r); },
+      toggleRec: async function(id, active){
+        const res = await window.apiFetch(API + "/" + id, { method:"PUT", body: new URLSearchParams({is_active: !active}) });
+        if(res.ok){ window.showSuccess({message:"Обновлено"}); load(); }
+        else window.showError({message:"Ошибка"});
+      },
+      delRec: async function(id){
+        if(!confirm(window.i18n.t("recurring.delete_confirm"))) return;
+        const res = await window.apiFetch(API + "/" + id, { method:"DELETE" });
+        if(res.ok){ window.showSuccess({message:"Удалено"}); load(); }
+        else window.showError({message:"Ошибка"});
+      },
+    };
+
+    function openForm(r = null){
+      const body = document.getElementById("rec-modal-body");
+      body.innerHTML = `
+        <form id="rec-form">
+          <input type="hidden" name="id" value="${r ? r.id : ''}">
+          <div class="form-field"><label data-i18n="common.account">Счёт</label><select name="account_id" required><option value="" data-i18n="common.no_data">Выберите счёт</option></select></div>
+          <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type" required>
+            <option value="income" ${r&&r.type==='income'?'selected':''} data-i18n="tx.income">Доход</option>
+            <option value="expense" ${r&&r.type==='expense'?'selected':''} data-i18n="tx.expense">Расход</option>
+          </select></div>
+          <div class="form-field"><label data-i18n="common.amount">Сумма</label><input type="text" name="amount" required value="${escape(r ? (r.amount_minor/100).toFixed(2) : '')}" data-i18n-placeholder="common.amount"></div>
+          <div class="form-field"><label data-i18n="common.description">Описание</label><input type="text" name="description" required value="${escape(r ? r.description : '')}" data-i18n-placeholder="common.description"></div>
+          <div class="form-field"><label>Интервал</label><select name="interval" required>
+            <option value="daily" ${r&&r.interval==='daily'?'selected':''} data-i18n="recurring.daily">Ежедневно</option>
+            <option value="weekly" ${r&&r.interval==='weekly'?'selected':''} data-i18n="recurring.weekly">Еженедельно</option>
+            <option value="monthly" ${r&&r.interval==='monthly'?'selected':''} data-i18n="recurring.monthly">Ежемесячно</option>
+            <option value="yearly" ${r&&r.interval==='yearly'?'selected':''} data-i18n="recurring.yearly">Ежегодно</option>
+            <option value="custom" ${r&&r.interval==='custom'?'selected':''} data-i18n="recurring.custom">По настраиваемому интервалу</option>
+          </select></div>
+          <div class="form-field"><label>Каждые N</label><input type="number" name="interval_count" min="1" value="${escape(r ? r.interval_count : 1)}"></div>
+          <div class="form-field"><label data-i18n="common.date">Начальная дата</label><input type="date" name="start_date" required value="${escape(r ? r.start_date : '')}"></div>
+          <div class="form-field"><label>Конечная дата (опц.)</label><input type="date" name="end_date" value="${escape(r ? r.end_date || '' : '')}"></div>
+          <div class="form-field"><label data-i18n="common.notes">Примечание</label><textarea name="notes" rows="2" data-i18n-placeholder="common.notes">${escape(r ? r.notes || '' : '')}</textarea></div>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button type="button" class="btn btn-secondary" id="rec-form-cancel" data-i18n="common.cancel">Отмена</button>
+            <button type="submit" class="btn btn-primary" data-i18n="common.save">Сохранить</button>
+          </div>
+        </form>
+      `;
+      document.getElementById("rec-modal").classList.add("open");
+      document.getElementById("rec-modal-backdrop").classList.add("open");
+      document.getElementById("rec-modal-close").onclick = closeForm;
+      document.getElementById("rec-modal-backdrop").onclick = closeForm;
+      fetch(ACC_API + "?include_archived=false").then(res=>res.json()).then(accs=>{
+        const sel = document.querySelector("select[name='account_id']");
+        sel.innerHTML = accs.map(a => `<option value="${a.id}" ${r&&r.account_id==a.id?'selected':''}>${escape(a.name)}</option>`).join("");
+      });
+      document.getElementById("rec-form").onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(document.getElementById("rec-form"));
+        const res = await window.apiFetch(API, { method:"POST", body: fd });
+        const rj = await res.json();
+        if(res.ok){ closeForm(); window.showSuccess({message:"Сохранено"}); load(); }
+        else window.showError({message: rj.error || "Ошибка"});
+      };
+    }
+    function closeForm(){ document.getElementById("rec-modal").classList.remove("open"); document.getElementById("rec-modal-backdrop").classList.remove("open"); }
+    document.getElementById("btn-add-recurring").onclick = () => openForm(null);
+    document.getElementById("btn-process").onclick = async () => {
+      const res = await window.apiFetch(API + "/process", { method:"POST" });
+      const r = await res.json();
+      window.showSuccess({message: `Создано транзакций: ${r.count}`});
+      load();
+    };
+    function formatCurrency(minor){ const u=Number(minor)/100; const abs=Math.abs(u).toLocaleString(window.i18n.lang==="ru"?"ru-RU":"en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); const s=u<0?"\u2212":""; return window.i18n.lang==="ru"?`${abs} $`:`${s}$${abs}`; }
+    function escape(s){ const d=document.createElement("div"); d.textContent=s===null||s===undefined?"":s; return d.innerHTML; }
+    load();
+  })();
+</script>
+{% endblock %}

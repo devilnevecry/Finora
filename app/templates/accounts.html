@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Счета — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.accounts">Счета</h1>
+    <p class="section-sub">Банковские счета, наличные, сбережения и кредитные счета.</p>
+  </div>
+  <button class="btn btn-primary btn-sm" id="btn-add-account" data-i18n="account.add">Добавить счёт</button>
+</section>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="common.description">Название</th>
+          <th data-i18n="common.type">Тип</th>
+          <th data-i18n="common.amount">Открытый баланс</th>
+          <th data-i18n="account.balance">Текущий баланс</th>
+          <th data-i18n="common.date">Создан</th>
+          <th style="width:120px">Статус</th>
+          <th style="width:140px" data-i18n="common.action">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="accounts-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="acc-modal-backdrop"></div>
+<div class="modal" id="acc-modal" role="dialog" aria-modal="true">
+  <div class="modal-content">
+    <button class="modal-close" id="acc-modal-close" aria-label="Закрыть">✕</button>
+    <div class="modal-body" id="acc-modal-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const API = "/api/accounts";
+    const tbody = document.getElementById("accounts-tbody");
+
+    async function load(){
+      const res = await window.apiFetch(API);
+      const accounts = await res.json();
+      tbody.innerHTML = "";
+      for (const a of accounts) {
+        const status = a.is_archived ? '<span class="badge bg-gray" data-i18n="category.archive">В архиве</span>' : (a.is_active ? '<span class="badge bg-green" data-i18n="common.active">Активно</span>' : '<span class="badge bg-gray">Неактивно</span>');
+        const balCls = Number(a.current_balance_minor) < 0 ? "neg" : "pos";
+        tr = document.createElement("tr");
+        tr.innerHTML = `<td><strong>${escape(a.name)}</strong></td><td>${escape(a.type)}</td><td>${formatCurrency(a.opening_balance_minor)}</td><td class="amount ${balCls}" style="font-variant-numeric:tabular-nums">${formatCurrency(a.current_balance_minor)}</td><td>${escape(a.created_at.slice(0,10))}</td><td>${status}</td><td>
+          <button class="btn btn-sm btn-outline" onclick="app.editAcc(${escape(JSON.stringify(a))})" data-i18n="common.edit">Ред.</button>
+          ${a.is_archived ? `<button class="btn btn-sm btn-secondary" onclick="app.unarchiveAcc(${a.id})" data-i18n="common.edit">Вернуть</button>` : `<button class="btn btn-sm btn-danger" onclick="app.deleteAcc(${a.id})" data-i18n="common.delete">Удал.</button>`}
+        </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    window.app = {
+      editAcc: function(a){ openForm(a); },
+      deleteAcc: async function(id){
+        if(!confirm("Удалить счёт? Связанные транзакции также будут удалены.")) return;
+        const res = await window.apiFetch(API + "/" + id, { method:"DELETE" });
+        if(res.ok){ window.showSuccess({message:"Удалено"}); load(); }
+        else window.showError({message:"Не удалось удалить"});
+      },
+      unarchiveAcc: async function(id){
+        const res = await window.apiFetch(API + "/" + id + "/archive", { method:"POST" });
+        if(res.ok){ window.showSuccess({message:"Восстановлено"}); load(); }
+      },
+    };
+
+    function openForm(a = null){
+      const body = document.getElementById("acc-modal-body");
+      body.innerHTML = `
+        <form id="acc-form">
+          <input type="hidden" name="id" value="${a ? a.id : ''}">
+          <div class="form-field"><label data-i18n="common.description">Название</label><input type="text" name="name" required value="${escape(a ? a.name : '')}" data-i18n-placeholder="common.description"></div>
+          <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type" required>
+            <option value="cash" ${a&&a.type==='cash'?'selected':''} data-i18n="account.cash">Наличные</option>
+            <option value="bank" ${a&&a.type==='bank'?'selected':''} data-i18n="account.bank">Банковский счёт</option>
+            <option value="savings" ${a&&a.type==='savings'?'selected':''} data-i18n="account.savings">Сбережения</option>
+            <option value="credit" ${a&&a.type==='credit'?'selected':''} data-i18n="account.credit">Кредитный счёт</option>
+            <option value="custom" ${a&&a.type==='custom'?'selected':''} data-i18n="account.custom">Другой</option>
+          </select></div>
+          <div class="form-field"><label>Валюта</label><input type="text" name="currency" value="${escape(a ? a.currency : '$')}" maxlength="3" pattern="[A-Z]{3}" data-i18n-placeholder="common.currency"></div>
+          <div class="form-field"><label>Открытый баланс</label><input type="text" name="opening_balance" value="${escape(a ? a.opening_balance_minor/100 : '0')}" data-i18n-placeholder="common.amount"></div>
+          <div class="form-field"><label data-i18n="common.notes">Описание</label><textarea name="description" rows="2" data-i18n-placeholder="common.notes">${escape(a ? a.description || '' : '')}</textarea></div>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button type="button" class="btn btn-secondary" id="acc-form-cancel" data-i18n="common.cancel">Отмена</button>
+            <button type="submit" class="btn btn-primary" data-i18n="common.save">Сохранить</button>
+          </div>
+        </form>
+      `;
+      document.getElementById("acc-modal").classList.add("open");
+      document.getElementById("acc-modal-backdrop").classList.add("open");
+      document.getElementById("acc-modal-close").onclick = closeForm;
+      document.getElementById("acc-modal-backdrop").onclick = closeForm;
+      document.getElementById("acc-form").onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(document.getElementById("acc-form"));
+        const res = await window.apiFetch(API, { method:"POST", body: fd });
+        const r = await res.json();
+        if(res.ok){ closeForm(); window.showSuccess({message:"Сохранено"}); load(); }
+        else window.showError({message: r.error || "Ошибка"});
+      };
+    }
+    function closeForm(){ document.getElementById("acc-modal").classList.remove("open"); document.getElementById("acc-modal-backdrop").classList.remove("open"); }
+    document.getElementById("btn-add-account").onclick = () => openForm(null);
+    function formatCurrency(minor){ const u=Number(minor)/100; const abs=Math.abs(u).toLocaleString(window.i18n.lang==="ru"?"ru-RU":"en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); const s=u<0?"\u2212":""; return window.i18n.lang==="ru"?`${abs} $`:`${s}$${abs}`; }
+    function escape(s){ const d=document.createElement("div"); d.textContent=s===null||s===undefined?"":s; return d.innerHTML; }
+    load();
+  })();
+</script>
+{% endblock %}

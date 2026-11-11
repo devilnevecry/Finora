@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Панель — Finora{% endblock %}
+
+{% block head %}
+<style>
+  .chart-card .chart-wrap { position: relative; height: 220px; }
+  .recent-table td { font-size: 0.86rem; }
+  .account-chip { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--color-bg-alt); border: 1px solid var(--color-border); font-size: 0.8rem; color: var(--color-text-secondary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="report.dashboard">Обзор финансов</h1>
+    <p class="section-sub" id="dashboard-period-label" data-i18n="filter.current_month">Текущий месяц</p>
+  </div>
+  <div class="filters" style="display:flex; gap:0.5rem; align-items:center;">
+    <select id="period-filter" class="form-field select" style="width:auto; padding:0.5rem 0.7rem;">
+      <option value="current_month" data-i18n="filter.current_month">Текущий месяц</option>
+      <option value="previous_month" data-i18n="filter.previous_month">Прошлый месяц</option>
+      <option value="current_year" data-i18n="filter.current_year">Текущий год</option>
+      <option value="custom" data-i18n="filter.custom_range">Произвольный период</option>
+    </select>
+    <div id="custom-date-range" style="display:none; gap:0.5rem; align-items:center;">
+      <input type="date" id="date-from" class="form-field">
+      <span class="section-sub" style="font-size:0.75rem; opacity:0.7">—</span>
+      <input type="date" id="date-to" class="form-field">
+    </div>
+  </div>
+</section>
+
+<!-- Summary cards -->
+<div class="card-grid" id="summary-grid">
+  <div class="stat-card">
+    <div class="stat-label" data-i18n="report.total_balance">Общий баланс</div>
+    <div class="stat-value" id="stat-balance">—</div>
+    <div class="stat-delta neu" id="stat-balance-delta"></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label" data-i18n="report.income">Доходы</div>
+    <div class="stat-value pos" id="stat-income">—</div>
+    <div class="stat-delta neu" id="stat-income-delta"></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label" data-i18n="report.expense">Расходы</div>
+    <div class="stat-value neg" id="stat-expense">—</div>
+    <div class="stat-delta neu" id="stat-expense-delta"></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label" data-i18n="report.net_cash_flow">Чистый поток</div>
+    <div class="stat-value" id="stat-net">—</div>
+    <div class="stat-delta" id="stat-net-delta"></div>
+  </div>
+</section>
+
+<div class="card-grid" style="grid-template-columns: 2fr 1fr; gap:1rem;">
+  <div class="card">
+    <div class="section-header" style="margin-bottom:0.75rem;">
+      <h2 class="section-title" style="font-size:1.05rem" data-i18n="report.spending_by_category">Расходы по категориям</h2>
+    </div>
+    <div class="chart-wrap"><canvas id="category-chart" class="chart"></canvas></div>
+    <div id="category-list" style="margin-top:0.75rem; font-size:0.86rem;"></div>
+  </div>
+  <div class="card">
+    <div class="section-header" style="margin-bottom:0.75rem;">
+      <h2 class="section-title" style="font-size:1.05rem" data-i18n="report.account_overview">Счета</h2>
+    </div>
+    <div id="account-list" style="font-size:0.88rem;"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-header">
+    <h2 class="section-title" style="font-size:1.05rem" data-i18n="tx.recent">Недавние транзакции</h2>
+    <a href="/transactions" class="btn btn-sm btn-primary" data-i18n="common.view_all">Все транзакции</a>
+  </div>
+  <div class="table-wrap">
+    <table class="recent-table">
+      <thead>
+        <tr>
+          <th data-i18n="common.date">Дата</th>
+          <th data-i18n="common.description">Описание</th>
+          <th data-i18n="common.type">Тип</th>
+          <th data-i18n="common.account">Счёт</th>
+          <th data-i18n="common.amount">Сумма</th>
+        </tr>
+      </thead>
+      <tbody id="recent-tbody"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function () {
+    const periodEl = document.getElementById("period-filter");
+    const customEl = document.getElementById("custom-date-range");
+    const dateFromEl = document.getElementById("date-from");
+    const dateToEl = document.getElementById("date-to");
+    const periodLabel = document.getElementById("dashboard-period-label");
+
+    periodEl.addEventListener("change", () => {
+      const custom = periodEl.value === "custom";
+      customEl.style.display = custom ? "flex" : "none";
+      if (!custom) loadDashboard(periodEl.value);
+    });
+
+    dateFromEl.addEventListener("change", () => loadDashboard("custom", dateFromEl.value, dateToEl.value || undefined));
+    dateToEl.addEventListener("change", () => loadDashboard("custom", dateFromEl.value || undefined, dateToEl.value));
+
+    async function loadDashboard(period, cf, ct) {
+      const params = new URLSearchParams({ period });
+      if (cf) params.set("custom_from", cf);
+      if (ct) params.set("custom_to", ct);
+      try {
+        const res = await window.apiFetch("/api/reports/dashboard?" + params.toString());
+        const data = await res.json();
+        render(data);
+      } catch (e) {
+        window.showError({ message: "Не удалось загрузить данные панели" });
+      }
+    }
+
+    function fmt(n, sym = "$") {
+      const units = Number(n) / 100;
+      const abs = Math.abs(units).toLocaleString(window.i18n.lang === "ru" ? "ru-RU" : "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const sign = units < 0 ? "\u2212" : "";
+      return window.i18n.lang === "ru" ? `${abs} ${sym}` : `${sign}${sym}${abs}`;
+    }
+
+    function render(data) {
+      document.getElementById("stat-balance").textContent = fmt(data.total_balance_minor);
+      document.getElementById("stat-income").textContent = fmt(data.total_income_minor);
+      document.getElementById("stat-expense").textContent = fmt(data.total_expense_minor);
+      document.getElementById("stat-net").textContent = fmt(data.net_cash_flow_minor);
+
+      const netEl = document.getElementById("stat-net-delta");
+      netEl.textContent = data.net_cash_flow_minor >= 0 ? "Положительный" : "Отрицательный";
+      netEl.className = "stat-delta " + (data.net_cash_flow_minor >= 0 ? "pos" : "neg");
+
+      // Category chart
+      const cats = data.spending_by_category || [];
+      const catList = document.getElementById("category-list");
+      catList.innerHTML = "";
+      const labels = [];
+      const values = [];
+      for (const c of cats) {
+        labels.push(c.category_name || "Неизвестно");
+        values.push(c.amount_minor);
+        const row = document.createElement("div");
+        row.style = "display:flex; justify-content:space-between; gap:0.5rem; margin-bottom:0.4rem; font-size:0.84rem;";
+        row.innerHTML = `<span>${escape(c.category_name || "—")}</span><span style="font-variant-numeric:tabular-nums">${fmt(c.amount_minor)}</span>`;
+        catList.appendChild(row);
+      }
+      if (cats.length === 0) catList.innerHTML = `<div style="color:var(--color-text-muted); font-size:0.84rem;">Нет расходов за период</div>`;
+      drawCategoryChart(labels, values);
+
+      // Recent transactions
+      const tbody = document.getElementById("recent-tbody");
+      tbody.innerHTML = "";
+      for (const t of (data.recent_transactions || []).slice(0, 8)) {
+        const tr = document.createElement("tr");
+        tr.className = "recent-table-row";
+        const typeClass = t.type === "income" ? "tx-income" : (t.type === "expense" ? "tx-expense" : "tx-transfer");
+        const sign = t.type === "expense" || t.type === "transfer" ? "\u2212" : "+";
+        tr.innerHTML = `
+          <td>${escape(t.date.slice(0,10))}</td>
+          <td>${escape(t.description)}</td>
+          <td><span class="tx-type ${typeClass}">${t.type}</span></td>
+          <td>${escape(String(t.account_id))}</td>
+          <td class="amount ${t.type==='income'?'pos':'neg'}">${sign}${fmt(t.amount_minor)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+      if (data.recent_transactions && data.recent_transactions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--color-text-muted); text-align:center">Нет транзакций</td></tr>`;
+      }
+
+      // Accounts
+      const acctList = document.getElementById("account-list");
+      acctList.innerHTML = "";
+      for (const a of (data.accounts || [])) {
+        const div = document.createElement("div");
+        div.style = "display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.55rem 0; border-bottom:1px solid var(--color-border); font-size:0.86rem;";
+        div.innerHTML = `<span>${escape(a.name)} <span style="font-size:0.72rem; color:var(--color-text-muted); font-weight:normal">(${a.type})</span></span><span style="font-variant-numeric:tabular-nums">${fmt(a.balance_minor)}</span>`;
+        acctList.appendChild(div);
+      }
+    }
+
+    function drawCategoryChart(labels, values) {
+      const canvas = document.getElementById("category-chart");
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = 220 * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, rect.width, 220);
+
+      const max = Math.max(...values, 1);
+      const pad = 40;
+      const top = 24;
+      const bottom = 200;
+      const left = 56;
+      const right = rect.width - 20;
+      const n = labels.length;
+      if (n === 0) return;
+      const bw = Math.max(24, (right - left) / n - 14);
+      const colors = ["#1d4ed8", "#059669", "#b45309", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
+
+      ctx.font = "12px -apple-system, system-ui, sans-serif";
+      ctx.fillStyle = "#475569";
+      for (let i = 0; i < n; i++) {
+        const h = (values[i] / max) * (bottom - top);
+        const x = left + i * ((right - left) / n) + 7;
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillRect(x, bottom - h, bw, h);
+        ctx.fillStyle = "#475569";
+        ctx.fillText(labels[i].length > 12 ? labels[i].slice(0, 12) + "…" : labels[i], x, bottom + 16);
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillText(fmt(values[i]), x + bw / 2 - 16, bottom - h - 8);
+      }
+      // axis
+      ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(left, bottom); ctx.lineTo(right, bottom); ctx.stroke();
+    }
+
+    function escape(s) { const d = document.createElement("div"); d.textContent = s === null || s === undefined ? "" : s; return d.innerHTML; }
+
+    loadDashboard("current_month");
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Транзакции — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.transactions">Транзакции</h1>
+    <p class="section-sub">История всех доходов, расходов и переводов.</p>
+  </div>
+  <div class="filters" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+    <button class="btn btn-primary btn-sm" id="btn-add-income" data-i18n="tx.add_income">Доход</button>
+    <button class="btn btn-primary btn-sm" id="btn-add-expense" data-i18n="tx.add_expense">Расход</button>
+    <button class="btn btn-primary btn-sm" id="btn-add-transfer" data-i18n="tx.add_transfer">Перевод</button>
+  </div>
+</section>
+
+<div class="card">
+  <div class="section-header" style="margin-bottom:0.75rem;">
+    <h2 class="section-title" style="font-size:1rem" data-i18n="common.filter">Фильтры</h2>
+  </div>
+  <div class="form-grid" id="filter-grid" style="gap:0.75rem;">
+    <div class="form-field">
+      <label data-i18n="common.search">Поиск</label>
+      <input type="text" id="f-search" data-i18n-placeholder="common.search">
+    </div>
+    <div class="form-field">
+      <label data-i18n="common.account">Счёт</label>
+      <select id="f-account"><option value="" data-i18n="common.no_data">Все счета</option></select>
+    </div>
+    <div class="form-field">
+      <label data-i18n="common.category">Категория</label>
+      <select id="f-category"><option value="" data-i18n="common.no_data">Все категории</option></select>
+    </div>
+    <div class="form-field">
+      <label data-i18n="common.type">Тип</label>
+      <select id="f-type"><option value="" data-i18n="common.no_data">Все</option><option value="income" data-i18n="tx.income">Доход</option><option value="expense" data-i18n="tx.expense">Расход</option><option value="transfer" data-i18n="tx.transfer">Перевод</option></select>
+    </div>
+    <div class="form-field">
+      <label>Период</label>
+      <select id="f-period"><option value="" data-i18n="filter.current_month">Текущий месяц</option><option value="prev" data-i18n="filter.previous_month">Прошлый месяц</option><option value="year" data-i18n="filter.current_year">Текущий год</option><option value="custom" data-i18n="filter.custom_range">Произвольный</option></select>
+    </div>
+    <div class="form-field" id="f-custom-wrap" style="display:none;">
+      <label>С</label><input type="date" id="f-date-from">
+    </div>
+    <div class="form-field" id="f-custom-wrap2" style="display:none;">
+      <label>По</label><input type="date" id="f-date-to">
+    </div>
+    <div class="form-field" style="align-self:end;">
+      <button class="btn btn-secondary" id="btn-apply-filters" data-i18n="common.filter">Применить</button>
+      <button class="btn btn-outline" id="btn-reset-filters" data-i18n="common.reset">Сброс</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap" style="margin-bottom:0;">
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="common.date">Дата</th>
+          <th data-i18n="common.description">Описание</th>
+          <th data-i18n="common.category">Категория</th>
+          <th data-i18n="common.account">Счёт</th>
+          <th data-i18n="common.type">Тип</th>
+          <th data-i18n="common.amount">Сумма</th>
+          <th data-i18n="common.tags">Теги</th>
+          <th style="width:110px" data-i18n="common.action">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="tx-tbody"></tbody>
+    </table>
+  </div>
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-top:0.75rem;">
+    <div id="tx-pagination" style="font-size:0.86rem; color:var(--color-text-muted);"></div>
+    <div id="tx-empty" style="display:none; text-align:center; color:var(--color-text-muted); padding:1rem;" data-i18n="common.no_data">Нет транзакций</div>
+  </div>
+</div>
+
+<!-- Modals: add / edit / delete -->
+<div class="modal-backdrop" id="tx-modal-backdrop"></div>
+<div class="modal" id="tx-modal" role="dialog" aria-modal="true">
+  <div class="modal-content">
+    <button class="modal-close" id="tx-modal-close" aria-label="Закрыть">✕</button>
+    <div class="modal-body" id="tx-modal-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function () {
+    const API = "/api/transactions";
+    let page = 1, limit = 25, filters = {};
+    let editingId = null;
+
+    const selAccount = document.getElementById("f-account");
+    const selCategory = document.getElementById("f-category");
+
+    async function loadLookups() {
+      try {
+        const [accRes, catRes] = await Promise.all([
+          window.apiFetch("/api/accounts?include_archived=false"),
+          window.apiFetch("/api/categories?include_archived=false"),
+        ]);
+        const accounts = await accRes.json();
+        const categories = await catRes.json();
+        selAccount.innerHTML = '<option value="" data-i18n="common.no_data">Все счета</option>' + accounts.map(a => `<option value="${a.id}">${escape(a.name)}</option>`).join("");
+        selCategory.innerHTML = '<option value="" data-i18n="common.no_data">Все категории</option>' + categories.map(c => `<option value="${c.id}">${escape(c.name)} (${c.type})</option>`).join("");
+        window.i18n.translateRoot(selAccount); window.i18n.translateRoot(selCategory);
+      } catch (e) { window.showError({ message: "Не удалось загрузить справочники" }); }
+    }
+
+    async function loadTransactions() {
+      const params = new URLSearchParams({ limit, offset: (page - 1) * limit, ...filters });
+      const res = await window.apiFetch(API + "?" + params.toString());
+      const data = await res.json();
+      render(data);
+    }
+
+    function render(data) {
+      const tbody = document.getElementById("tx-tbody");
+      tbody.innerHTML = "";
+      const empty = document.getElementById("tx-empty");
+      const typeClass = t => t.type === "income" ? "tx-income" : (t.type === "expense" ? "tx-expense" : "tx-transfer");
+      const sign = t => t.type === "expense" || t.type === "transfer" ? "\u2212" : "+";
+      if (!data.items || data.items.length === 0) {
+        empty.style.display = "block";
+      } else {
+        empty.style.display = "none";
+        for (const t of data.items) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${escape(t.transaction_date.slice(0,10))}</td>
+            <td>${escape(t.description)}</td>
+            <td>${escape(String(t.category_id || "—"))}</td>
+            <td>${escape(String(t.account_id))}</td>
+            <td><span class="tx-type ${typeClass(t)}">${t.type}</span></td>
+            <td class="amount ${t.type==='income'?'pos':'neg'}">${sign(t)}${formatCurrency(t.amount_minor)}</td>
+            <td>${escape(t.tags || "")}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="app.editTx(${t.id})" data-i18n="common.edit">Ред.</button>
+              <button class="btn btn-sm btn-danger" onclick="app.deleteTx(${t.id})" data-i18n="common.delete">Удал.</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        }
+      }
+      const total = data.total || 0;
+      const pages = Math.ceil(total / limit) || 1;
+      document.getElementById("tx-pagination").textContent = `Страница ${page} из ${pages} (всего ${total})`;
+      document.getElementById("tx-pagination").innerHTML += `
+        <button class="btn btn-sm btn-secondary" ${page===1?'disabled':''} onclick="app.prevPage()">&#10094;</button>
+        <button class="btn btn-sm btn-secondary" ${page===pages?'disabled':''} onclick="app.nextPage()">&#10095;</button>`;
+    }
+
+    window.formatCurrency = function (minor) {
+      const units = Number(minor)/100;
+      const abs = Math.abs(units).toLocaleString(window.i18n.lang==="ru"?"ru-RU":"en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+      const sign = units<0?"\u2212":"";
+      return window.i18n.lang==="ru" ? `${abs} $` : `${sign}$${abs}`;
+    };
+
+    window.app = {
+      prevPage: function(){ if(page>1){page--; loadTransactions();} },
+      nextPage: function(){ page++; loadTransactions(); },
+      editTx: async function(id){
+        editingId = id;
+        const res = await window.apiFetch(API + "/" + id);
+        const t = await res.json();
+        openForm(t);
+      },
+      deleteTx: async function(id){
+        if(!confirm(window.i18n.t("tx.delete_confirm"))) return;
+        const res = await window.apiFetch(API + "/" + id, { method:"DELETE" });
+        if(res.ok){ window.showSuccess({message:"Удалено"}); loadTransactions(); }
+        else window.showError({message:"Не удалось удалить"});
+      },
+    };
+
+    function openForm(tx = null) {
+      const body = document.getElementById("tx-modal-body");
+      const isExpense = tx ? tx.type === "expense" : false;
+      const title = tx ? window.i18n.t("common.edit") : (isExpense ? window.i18n.t("tx.add_expense") : window.i18n.t("tx.add_income"));
+      body.innerHTML = `
+        <form id="tx-form">
+          <input type="hidden" name="id" value="${tx ? tx.id : ''}">
+          <div class="form-field"><label data-i18n="common.account">Счёт</label><select name="account_id" required><option value="" data-i18n="common.no_data">Выберите счёт</option></select></div>
+          <div class="form-field"><label data-i18n="common.category">Категория</label><select name="category_id"><option value="" data-i18n="common.no_data">Без категории</option></select></div>
+          <div class="form-field"><label data-i18n="common.amount">Сумма</label><input type="text" name="amount" required data-i18n-placeholder="common.amount"></div>
+          <div class="form-field"><label data-i18n="common.date">Дата</label><input type="datetime-local" name="transaction_date" required></div>
+          <div class="form-field"><label data-i18n="common.description">Описание</label><input type="text" name="description" required value="${escape(tx ? tx.description : '')}" data-i18n-placeholder="common.description"></div>
+          <div class="form-field"><label data-i18n="common.notes">Примечание</label><textarea name="notes" rows="2" data-i18n-placeholder="common.notes">${escape(tx ? tx.notes || '' : '')}</textarea></div>
+          <div class="form-field"><label data-i18n="common.tags">Теги</label><input type="text" name="tags" value="${escape(tx ? tx.tags || '' : '')}" data-i18n-placeholder="common.tags"></div>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button type="button" class="btn btn-secondary" id="tx-form-cancel" data-i18n="common.cancel">Отмена</button>
+            <button type="submit" class="btn btn-primary" data-i18n="common.save">Сохранить</button>
+          </div>
+        </form>
+      `;
+      document.getElementById("tx-modal").classList.add("open");
+      document.getElementById("tx-modal-backdrop").classList.add("open");
+      document.getElementById("tx-modal-close").onclick = closeForm;
+      document.getElementById("tx-modal-backdrop").onclick = closeForm;
+
+      // fill selects
+      fetchLookupsIntoForm(tx);
+      document.getElementById("tx-form").onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(document.getElementById("tx-form"));
+        const method = tx ? "PUT" : "POST";
+        const path = tx ? API + "/" + id : API + "/" + (tx && tx.type==="expense"?"expense":"income");
+        const res = await window.apiFetch(path, { method, body: fd });
+        const result = await res.json();
+        if (res.ok) { closeForm(); window.showSuccess({message: tx?window.i18n.t("common.save"):window.i18n.t("common.success")}); loadTransactions(); }
+        else { window.showError({message: result.error || "Ошибка"}); }
+      };
+    }
+
+    async function fetchLookupsIntoForm(tx) {
+      const [accRes, catRes] = await Promise.all([window.apiFetch("/api/accounts?include_archived=false"), window.apiFetch("/api/categories?include_archived=false")]);
+      const accounts = await accRes.json();
+      const categories = await catRes.json();
+      const accSel = document.querySelector("select[name='account_id']");
+      const catSel = document.querySelector("select[name='category_id']");
+      accSel.innerHTML = accounts.map(a => `<option value="${a.id}" ${tx && tx.account_id==a.id?'selected':''}>${escape(a.name)}</option>`).join("");
+      catSel.innerHTML = '<option value="" ' + (!tx || !tx.category_id ? 'selected' : '') + ' data-i18n="common.no_data">Без категории</option>' + categories.map(c => `<option value="${c.id}" ${tx && tx.category_id==c.id?'selected':''}>${escape(c.name)} (${c.type})</option>`).join("");
+      window.i18n.translateRoot(accSel); window.i18n.translateRoot(catSel);
+      if (tx) {
+        document.querySelector("input[name='amount']").value = (tx.amount_minor/100).toFixed(2);
+        document.querySelector("input[name='transaction_date']").value = tx.transaction_date.slice(0,16);
+      } else {
+        document.querySelector("input[name='transaction_date']").value = new Date().toISOString().slice(0,16);
+      }
+    }
+
+    function closeForm() {
+      document.getElementById("tx-modal").classList.remove("open");
+      document.getElementById("tx-modal-backdrop").classList.remove("open");
+      editingId = null;
+    }
+
+    // quick-add buttons open appropriate forms
+    document.getElementById("btn-add-income").onclick = () => openForm(null);
+    document.getElementById("btn-add-expense").onclick = () => { openForm(null); };
+    document.getElementById("btn-add-transfer").onclick = () => {
+      window.location.href = "/transactions"; // transfer handled via form? simplified
+      window.showInfo = window.showInfo || (m => window.showToast({message:m,type:"info"}));
+      window.showInfo({message:"Перевод создайте через форму расхода/дохода или API"});
+    };
+
+    document.getElementById("btn-apply-filters").onclick = () => {
+      filters = {};
+      const s = document.getElementById("f-search").value; if(s) filters.search = s;
+      const a = selAccount.value; if(a) filters.account_id = a;
+      const c = selCategory.value; if(c) filters.category_id = c;
+      const t = document.getElementById("f-type").value; if(t) filters.type = t;
+      const df = document.getElementById("f-date-from").value; if(df) filters.date_from = df;
+      const dt = document.getElementById("f-date-to").value; if(dt) filters.date_to = dt;
+      page = 1; loadTransactions();
+    };
+    document.getElementById("btn-reset-filters").onclick = () => { filters = {}; page = 1; document.getElementById("f-search").value=""; selAccount.value=""; selCategory.value=""; document.getElementById("f-type").value=""; loadTransactions(); };
+
+    document.getElementById("f-period").onchange = (e) => {
+      const v = e.target.value;
+      const wrap1 = document.getElementById("f-custom-wrap"); const wrap2 = document.getElementById("f-custom-wrap2");
+      if(v==="custom"){ wrap1.style.display="block"; wrap2.style.display="block"; } else { wrap1.style.display="none"; wrap2.style.display="none"; filters={}; if(v){ loadTransactions(); } }
+    };
+
+    await loadLookups();
+    loadTransactions();
+  })();
+  function escape(s){ const d=document.createElement("div"); d.textContent = s===null||s===undefined?"":s; return d.innerHTML; }
+</script>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Резервное копирование — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.backup">Резервное копирование</h1>
+    <p class="section-sub">Создание, загрузка и восстановление резервных копий базы данных.</p>
+  </div>
+</section>
+
+<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="card">
+    <h2 style="margin-bottom:0.75rem; font-size:1.05rem" data-i18n="backup.title">Резервные копии</h2>
+    <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+      <button class="btn btn-primary" id="btn-create-backup" data-i18n="backup.create">Создать копию</button>
+    </div>
+    <div id="backups-list" style="font-size:0.88rem;"></div>
+  </div>
+  <div class="card">
+    <h2 style="margin-bottom:0.75rem; font-size:1.05rem">Восстановление</h2>
+    <p style="font-size:0.86rem; color:var(--color-text-muted); margin-bottom:0.75rem;">Выберите файл и подтвердите восстановление. Текущая база будет заменена.</p>
+    <form id="restore-form">
+      <div class="form-field"><label>Файл резервной копии</label><select id="restore-select" required></select></div>
+      <div class="form-field"><label>Подтверждение</label><input type="text" name="confirm" placeholder="yes" required data-i18n-placeholder="backup.restore_confirm"></div>
+      <div style="margin-top:0.75rem;">
+        <button type="button" class="btn btn-danger" id="btn-restore" data-i18n="backup.restore">Восстановить</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const LIST_API = "/api/backup";
+    const CREATE_API = "/api/backup/create";
+    const DOWNLOAD_BASE = "/api/backup/download/";
+    const VALIDATE_API = "/api/backup/validate";
+    const RESTORE_API = "/api/backup/restore";
+    const listEl = document.getElementById("backups-list");
+    const selEl = document.getElementById("restore-select");
+
+    async function load(){
+      const res = await window.apiFetch(LIST_API);
+      const data = await res.json();
+      listEl.innerHTML = "";
+      selEl.innerHTML = '<option value="" data-i18n="common.no_data">Нет копий</option>';
+      for (const b of (data.backups||[])) {
+        const div = document.createElement("div");
+        div.style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; padding:0.5rem 0; border-bottom:1px solid var(--color-border); font-size:0.84rem;";
+        div.innerHTML = `<div><div><strong>${escape(b.filename)}</strong></div><div style="font-size:0.75rem; color:var(--color-text-muted)">${escape(b.created_at||"")} &bull; ${b.size} байт</div></div><div style="display:flex; gap:0.3rem;">
+          <a href="${DOWNLOAD_BASE}${escape(b.filename)}" class="btn btn-sm btn-secondary" download data-i18n="backup.download">Скачать</a>
+          <button class="btn btn-sm btn-outline" onclick="app.validateBack('${escape(b.filename)}')" data-i18n="common.filter">Проверить</button>
+        </div></div>`;
+        listEl.appendChild(div);
+        const o = document.createElement("option"); o.value = b.filename; o.textContent = b.filename; selEl.appendChild(o);
+      }
+    }
+
+    window.app = {
+      validateBack: async function(filename){
+        const res = await window.apiFetch(VALIDATE_API, { method:"POST", body: new URLSearchParams({filename}) });
+        const r = await res.json();
+        if(r.valid) window.showSuccess({message:"Копия валидна"});
+        else window.showError({message: r.error || "Неверная копия"});
+      },
+    };
+
+    document.getElementById("btn-create-backup").onclick = async () => {
+      const res = await window.apiFetch(CREATE_API, { method:"POST" });
+      const r = await res.json();
+      if(res.ok){ window.showSuccess({message:"Копия создана"}); load(); }
+      else window.showError({message: r.error || "Ошибка"});
+    };
+
+    document.getElementById("btn-restore").onclick = async () => {
+      const filename = selEl.value;
+      const confirm = document.querySelector("input[name='confirm']").value;
+      if(!filename){ window.showError({message:"Выберите копию"}); return; }
+      if(confirm.toLowerCase() !== "yes"){ window.showError({message:"Введите yes для подтверждения"}); return; }
+      if(!confirm("Это заменит текущую базу данных. Продолжить?")) return;
+      const res = await window.apiFetch(RESTORE_API, { method:"POST", body: new URLSearchParams({filename, confirm:"yes"}) });
+      const r = await res.json();
+      if(res.ok){ window.showSuccess({message:"Восстановлено. Перезагрузите страницу."}); }
+      else window.showError({message: r.error || "Ошибка восстановления"});
+    };
+    function escape(s){ const d=document.createElement("div"); d.textContent=s===null||s===undefined?"":s; return d.innerHTML; }
+    load();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Finora{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token(request) }}">
+  <meta name="app-language" content="{{ lang }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <noscript><div class="banner banner-error">Error: JavaScript требуется для работы приложения.</div></noscript>
+
+  <nav class="navbar" aria-label="Основная навигация">
+    <div class="navbar-brand">
+      <a href="/dashboard" class="brand-link" aria-label="Finora — главная">
+        <span class="brand-mark">F</span>
+        <span class="brand-name">Finora</span>
+      </a>
+    </div>
+    <div class="navbar-menu" id="navbar-menu">
+      <a href="/dashboard" class="nav-item" data-i18n="nav.dashboard">Панель</a>
+      <a href="/transactions" class="nav-item" data-i18n="nav.transactions">Транзакции</a>
+      <a href="/accounts" class="nav-item" data-i18n="nav.accounts">Счета</a>
+      <a href="/categories" class="nav-item" data-i18n="nav.categories">Категории</a>
+      <a href="/budgets" class="nav-item" data-i18n="nav.budgets">Бюджеты</a>
+      <a href="/recurring" class="nav-item" data-i18n="nav.recurring">Повторяющиеся</a>
+      <a href="/reports" class="nav-item" data-i18n="nav.reports">Отчёты</a>
+      <a href="/import" class="nav-item" data-i18n="nav.import_export">Импорт/экспорт</a>
+      <a href="/backup" class="nav-item" data-i18n="nav.backup">Резервное копирование</a>
+      <a href="/settings" class="nav-item" data-i18n="nav.settings">Настройки</a>
+    </div>
+    <div class="navbar-actions">
+      <button class="icon-btn" id="theme-toggle" aria-label="Light theme" data-i18n-label="theme.light" title="Тема">
+        <svg class="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+      <button class="icon-btn" id="mobile-menu-toggle" aria-label="Открыть меню">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-drawer" id="mobile-drawer">
+    <div class="mobile-drawer-header">
+      <span class="brand-name" style="font-weight:700">Finora</span>
+      <button class="icon-btn" id="mobile-drawer-close" aria-label="Закрыть меню">✕</button>
+    </div>
+    <a href="/dashboard" class="drawer-item" data-i18n="nav.dashboard">Панель</a>
+    <a href="/transactions" class="drawer-item" data-i18n="nav.transactions">Транзакции</a>
+    <a href="/accounts" class="drawer-item" data-i18n="nav.accounts">Счета</a>
+    <a href="/categories" class="drawer-item" data-i18n="nav.categories">Категории</a>
+    <a href="/budgets" class="drawer-item" data-i18n="nav.budgets">Бюджеты</a>
+    <a href="/recurring" class="drawer-item" data-i18n="nav.recurring">Повторяющиеся</a>
+    <a href="/reports" class="drawer-item" data-i18n="nav.reports">Отчёты</a>
+    <a href="/import" class="drawer-item" data-i18n="nav.import_export">Импорт/экспорт</a>
+    <a href="/backup" class="drawer-item" data-i18n="nav.backup">Резервное копирование</a>
+    <a href="/settings" class="drawer-item" data-i18n="nav.settings">Настройки</a>
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <main class="page">
+    {% block flash %}
+    {% set messages = get_flashed_messages(request, True) %}
+    {% if messages %}
+        <div class="flash-container" id="flash-container">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}" role="alert" aria-live="polite">
+              <span class="flash-body">{{ message }}</span>
+              <button class="flash-dismiss" aria-label="Закрыть">✕</button>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    {% endblock %}
+
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="footer" aria-label="Подвал">
+    <div class="container footer-inner">
+      <span class="footer-text"><strong>Finora</strong> &nbsp;•&nbsp; Приватные личные финансы. Данные хранятся только локально.</span>
+      <span class="footer-lang" id="footer-lang"></span>
+    </div>
+  </footer>
+
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="modal" id="modal" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close" aria-label="Закрыть">✕</button>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script>
+    window.FINORA = {
+      csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || "",
+      lang: document.querySelector('meta[name="app-language"]')?.content || "ru",
+      baseUrl: window.location.origin,
+    };
+  </script>
+  <script src="{{ url_for('static', path='js/i18n.js') }}"></script>
+  <script src="{{ url_for('static', path='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

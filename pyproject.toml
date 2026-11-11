@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finora"
+version = "1.0.0"
+description = "Privacy-first local personal finance management application"
+readme = "README.en.md"
+requires-python = ">=3.11"
+authors = [{ name = "devilnevecry" }]
+license = { file = "LICENSE" }
+keywords = ["finance", "budget", "personal-finance", "fastapi", "sqlite", "local-first"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+]
+
+[project.scripts]
+finora = "app.main:run"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "PLR", "PLE", "S", "T20"]
+ignore = ["E501", "B008", "S101", "S105", "S603", "S608", "PLR2004", "PLR0913"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+force-sort-within-sections = false
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+rootdir = "."
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+asyncio_mode = "auto"
+addopts = ["-q", "--strict-markers", "--tb=short"]
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+    "finance: financial correctness tests",
+    "security: security tests",
+]

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Категории — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.categories">Категории</h1>
+    <p class="section-sub">Категории доходов и расходов для отчётов и бюджетов.</p>
+  </div>
+  <button class="btn btn-primary btn-sm" id="btn-add-category" data-i18n="category.add">Добавить категорию</button>
+</section>
+
+<div class="card">
+  <div class="form-field" style="max-width:260px; margin-bottom:1rem;">
+    <label data-i18n="common.type">Тип</label>
+    <select id="cat-type-filter"><option value="" data-i18n="common.no_data">Все</option><option value="income" data-i18n="category.income">Доход</option><option value="expense" data-i18n="category.expense">Расход</option></select>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="common.description">Название</th>
+          <th data-i18n="common.type">Тип</th>
+          <th>Цвет</th>
+          <th>Статус</th>
+          <th style="width:130px" data-i18n="common.action">Действия</th>
+        </tr>
+      </thead>
+      <tbody id="categories-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="cat-modal-backdrop"></div>
+<div class="modal" id="cat-modal" role="dialog" aria-modal="true">
+  <div class="modal-content">
+    <button class="modal-close" id="cat-modal-close" aria-label="Закрыть">✕</button>
+    <div class="modal-body" id="cat-modal-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const API = "/api/categories";
+    let typeFilter = "";
+    const tbody = document.getElementById("categories-tbody");
+
+    async function load(){
+      const res = await window.apiFetch(API + "?type=" + (typeFilter||"") + "&include_archived=true");
+      const cats = await res.json();
+      tbody.innerHTML = "";
+      for (const c of cats) {
+        const status = c.is_archived ? '<span class="badge bg-gray" data-i18n="category.archive">В архиве</span>' : '<span class="badge bg-green">Активно</span>';
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td><strong>${escape(c.name)}</strong></td><td>${c.type === 'income' ? '<span class="tx-income tx-type">Доход</span>' : '<span class="tx-expense tx-type">Расход</span>'}</td><td><span class="tag-chip" style="background:${c.color||'#e2e8f0'}; color:#fff">${escape(c.color||'—')}</span></td><td>${status}</td><td>
+          <button class="btn btn-sm btn-outline" onclick="app.editCat(${escape(JSON.stringify(c))})" data-i18n="common.edit">Ред.</button>
+          ${c.is_archived ? `<button class="btn btn-sm btn-secondary" onclick="app.delCat(${c.id})" data-i18n="common.delete">Удал.</button>` : `<button class="btn btn-sm btn-danger" onclick="app.archiveCat(${c.id})" data-i18n="category.archive">В архив</button>`}
+        </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    window.app = {
+      editCat: function(c){ openForm(c); },
+      archiveCat: async function(id){
+        if(!confirm("Переместить категорию в архив? История транзакций сохранится.")) return;
+        const res = await window.apiFetch(API + "/" + id + "/archive", { method:"POST" });
+        if(res.ok){ window.showSuccess({message:"В архиве"}); load(); }
+        else window.showError({message:"Ошибка"});
+      },
+      delCat: async function(id){
+        if(!confirm("Удалить категорию без транзакций?")) return;
+        const res = await window.apiFetch(API + "/" + id, { method:"DELETE" });
+        if(res.ok){ window.showSuccess({message:"Удалено"}); load(); }
+        else window.showError({message:"Не удалось удалить (возможно, есть транзакции)"});
+      },
+    };
+
+    function openForm(c = null){
+      const body = document.getElementById("cat-modal-body");
+      body.innerHTML = `
+        <form id="cat-form">
+          <input type="hidden" name="id" value="${c ? c.id : ''}">
+          <div class="form-field"><label data-i18n="common.description">Название</label><input type="text" name="name" required value="${escape(c ? c.name : '')}" data-i18n-placeholder="common.description"></div>
+          <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type" required>
+            <option value="income" ${c&&c.type==='income'?'selected':''} data-i18n="category.income">Доход</option>
+            <option value="expense" ${c&&c.type==='expense'?'selected':''} data-i18n="category.expense">Расход</option>
+          </select></div>
+          <div class="form-field"><label>Цвет</label><input type="color" name="color" value="${escape(c ? c.color || '#1d4ed8' : '#1d4ed8')}"></div>
+          <div class="form-field"><label>Иконка (опц.)</label><input type="text" name="icon" value="${escape(c ? c.icon || '' : '')}" data-i18n-placeholder="Напр. wallet"></div>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button type="button" class="btn btn-secondary" id="cat-form-cancel" data-i18n="common.cancel">Отмена</button>
+            <button type="submit" class="btn btn-primary" data-i18n="common.save">Сохранить</button>
+          </div>
+        </form>
+      `;
+      document.getElementById("cat-modal").classList.add("open");
+      document.getElementById("cat-modal-backdrop").classList.add("open");
+      document.getElementById("cat-modal-close").onclick = closeForm;
+      document.getElementById("cat-modal-backdrop").onclick = closeForm;
+      document.getElementById("cat-form").onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(document.getElementById("cat-form"));
+        const res = await window.apiFetch(API, { method:"POST", body: fd });
+        const r = await res.json();
+        if(res.ok){ closeForm(); window.showSuccess({message:"Сохранено"}); load(); }
+        else window.showError({message: r.error || "Ошибка"});
+      };
+    }
+    function closeForm(){ document.getElementById("cat-modal").classList.remove("open"); document.getElementById("cat-modal-backdrop").classList.remove("open"); }
+    document.getElementById("btn-add-category").onclick = () => openForm(null);
+    document.getElementById("cat-type-filter").onchange = (e) => { typeFilter = e.target.value; load(); };
+    function escape(s){ const d=document.createElement("div"); d.textContent=s===null||s===undefined?"":s; return d.innerHTML; }
+    load();
+  })();
+</script>
+{% endblock %}

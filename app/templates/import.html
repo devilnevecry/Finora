@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Импорт/экспорт — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.import_export">Импорт и экспорт CSV</h1>
+    <p class="section-sub">Загрузка транзакций из CSV и выгрузка данных.</p>
+  </div>
+</section>
+
+<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="card">
+    <h2 style="margin-bottom:0.75rem; font-size:1.05rem" data-i18n="import.title">Импорт CSV</h2>
+    <form id="import-form" enctype="multipart/form-data">
+      <div class="form-field"><label data-i18n="import.upload">Файл CSV</label><input type="file" name="file" accept=".csv" required></div>
+      <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+        <button type="button" class="btn btn-primary" id="btn-import-preview" data-i18n="import.preview">Предпросмотр</button>
+      </div>
+    </form>
+    <div id="import-preview" style="margin-top:1rem; display:none;"></div>
+  </div>
+  <div class="card">
+    <h2 style="margin-bottom:0.75rem; font-size:1.05rem" data-i18n="export.title">Экспорт CSV</h2>
+    <form id="export-form">
+      <div class="form-field"><label data-i18n="common.date">С</label><input type="date" name="date_from"></div>
+      <div class="form-field"><label data-i18n="common.date">По</label><input type="date" name="date_to"></div>
+      <div class="form-field"><label data-i18n="common.account">Счёт</label><input type="number" name="account_id" data-i18n-placeholder="common.account"></div>
+      <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type"><option value="" data-i18n="common.no_data">Все</option><option value="income" data-i18n="tx.income">Доход</option><option value="expense" data-i18n="tx.expense">Расход</option><option value="transfer" data-i18n="tx.transfer">Перевод</option></select></div>
+      <div class="form-field"><label data-i18n="common.category">Категория</label><input type="number" name="category_id" data-i18n-placeholder="common.category"></div>
+      <div style="margin-top:0.75rem;">
+        <button type="button" class="btn btn-primary" id="btn-export" data-i18n="export.download">Скачать CSV</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const IMPORT_API = "/api/import-export/preview";
+    const CONFIRM_API = "/api/import-export/confirm";
+    const EXPORT_API = "/api/import-export/export";
+
+    document.getElementById("btn-import-preview").onclick = async () => {
+      const form = document.getElementById("import-form");
+      const fd = new FormData(form);
+      const file = fd.get("file");
+      if(!file){ window.showError({message:"Выберите файл"}); return; }
+      // mapping UI: simple identity mapping
+      const res = await window.apiFetch(IMPORT_API, { method:"POST", body: fd });
+      const result = await res.json();
+      const box = document.getElementById("import-preview");
+      box.style.display = "block";
+      if(result.error){ box.innerHTML = `<div style="color:var(--color-danger)">${escape(result.error)}</div>`; return; }
+      let html = `<p><strong>${result.valid_count} / ${result.total}</strong> строк валидны. Дубликатов: ${result.duplicate_count}, ошибок: ${result.error_count}</p>`;
+      html += `<table style="width:100%; font-size:0.82rem; margin-top:0.5rem;"><thead><tr><th>Строка</th><th>Описание</th><th>Дата</th><th>Сумма</th><th>Ошибки</th><th>Статус</th></tr></thead><tbody>`;
+      for (const row of result.rows) {
+        html += `<tr><td>${row.line_number}</td><td>${escape(row.mapped.description||"")}</td><td>${escape(String(row.mapped.transaction_date||""))}</td><td>${escape(String(row.mapped.amount||""))}</td><td style="color:var(--color-danger); font-size:0.75rem">${(row.errors||[]).join("; ")}</td><td>${row.valid ? '<span style="color:var(--color-success)">OK</span>' : '<span style="color:var(--color-danger)">Ошибка</span>'}</td></tr>`;
+      }
+      html += `</tbody></table>`;
+      if(result.valid_count){
+        html += `<div style="margin-top:0.75rem;"><button class="btn btn-primary" id="btn-import-confirm" data-i18n="import.import">Импортировать валидные</button></div>`;
+        document.getElementById("btn-import-confirm")?.remove();
+        box.innerHTML = html;
+        document.getElementById("btn-import-confirm").onclick = async () => {
+          const c2 = await window.apiFetch(CONFIRM_API, { method:"POST", body: new URLSearchParams({rows_json: JSON.stringify(result.rows)}) });
+          const cj = await c2.json();
+          window.showSuccess({message: `Импортировано: ${cj.imported}, пропущено: ${cj.skipped}`});
+          box.style.display = "none";
+        };
+      }
+    };
+
+    document.getElementById("btn-export").onclick = async () => {
+      const form = document.getElementById("export-form");
+      const params = new URLSearchParams(new FormData(form));
+      const res = await window.apiFetch(EXPORT_API + "?" + params.toString());
+      if(!res.ok){ const r = await res.json(); window.showError({message: r.error || "Ошибка экспорта"}); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "finora_export.csv"; a.click();
+      URL.revokeObjectURL(url);
+      window.showSuccess({message:"Экспорт выполнен"});
+    };
+    function escape(s){ const d=document.createElement("div"); d.textContent=s===null||s===undefined?"":s; return d.innerHTML; }
+  })();
+</script>
+{% endblock %}

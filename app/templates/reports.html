@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Отчёты — Finora{% endblock %}
+
+{% block content %}
+<section class="section-header">
+  <div>
+    <h1 class="section-title" data-i18n="nav.reports">Отчёты и аналитика</h1>
+    <p class="section-sub">Доходы, расходы и динамика за выбранный период.</p>
+  </div>
+</section>
+
+<div class="card">
+  <div class="form-field" style="display:inline-block; width:auto; margin-right:1rem;">
+    <label>Период</label>
+    <select id="rep-period"><option value="current_month" data-i18n="filter.current_month">Текущий месяц</option><option value="previous_month" data-i18n="filter.previous_month">Прошлый месяц</option><option value="current_year" data-i18n="filter.current_year">Текущий год</option><option value="custom" data-i18n="filter.custom_range">Произвольный</option></select>
+  </div>
+  <div id="rep-custom" style="display:none; gap:0.5rem; align-items:center;">
+    <input type="date" id="rep-from"> <span>—</span> <input type="date" id="rep-to">
+  </div>
+  <button class="btn btn-secondary btn-sm" id="rep-apply" data-i18n="common.filter">Применить</button>
+</section>
+
+<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="card">
+    <h3 style="margin-bottom:0.75rem; font-size:1rem" data-i18n="report.income_vs_expense">Доходы vs расходы</h3>
+    <div class="chart-wrap"><canvas id="ie-chart" class="chart"></canvas></div>
+    <div id="ie-summary" style="margin-top:0.75rem; font-size:0.88rem;"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:0.75rem; font-size:1rem" data-i18n="report.spending_by_category">Расходы по категориям</h3>
+    <div class="chart-wrap"><canvas id="cat-chart" class="chart"></canvas></div>
+    <div id="cat-summary" style="margin-top:0.75rem; font-size:0.84rem;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function(){
+    const periodSel = document.getElementById("rep-period");
+    const customWrap = document.getElementById("rep-custom");
+    const repFrom = document.getElementById("rep-from");
+    const repTo = document.getElementById("rep-to");
+    periodSel.onchange = () => { customWrap.style.display = periodSel.value === "custom" ? "flex" : "none"; load(); };
+    repFrom.onchange = load; repTo.onchange = load;
+    document.getElementById("rep-apply").onclick = load;
+
+    async function load(){
+      const params = new URLSearchParams({ period: periodSel.value });
+      if(periodSel.value === "custom"){ params.set("custom_from", repFrom.value); params.set("custom_to", repTo.value); }
+      try {
+        const [ieRes, catRes] = await Promise.all([
+          window.apiFetch("/api/reports/income-vs-expense?" + params.toString()),
+          window.apiFetch("/api/reports/spending-by-category?" + params.toString()),
+        ]);
+        const ie = await ieRes.json();
+        const cats = await catRes.json();
+        drawIE(ie.income, ie.expense, ie.net);
+        drawCats(cats);
+        document.getElementById("ie-summary").innerHTML = `<div><strong>Доходы:</strong> ${fmt(ie.income)}</div><div><strong>Расходы:</strong> ${fmt(ie.expense)}</div><div><strong>Чистый:</strong> ${fmt(ie.net)}</div>`;
+      } catch(e){ window.showError({message:"Не удалось загрузить отчёты"}); }
+    }
+
+    function fmt(minor){ const u=Number(minor)/100; const abs=Math.abs(u).toLocaleString(window.i18n.lang==="ru"?"ru-RU":"en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); const s=u<0?"\u2212":""; return window.i18n.lang==="ru"?`${abs} $`:`${s}$${abs}`; }
+
+    function drawIE(income, expense, net){
+      const c = document.getElementById("ie-chart"); const ctx = c.getContext("2d");
+      const dpr = window.devicePixelRatio||1; const r = c.parentElement.getBoundingClientRect();
+      c.width = r.width*dpr; c.height = 200*dpr; ctx.scale(dpr,dpr); ctx.clearRect(0,0,r.width,200);
+      const max = Math.max(income, expense, Math.abs(net), 1);
+      const hInc = (income/max)*140; const hExp = (expense/max)*140;
+      ctx.fillStyle = "#059669"; ctx.fillRect(40, 160-hInc, 70, hInc);
+      ctx.fillStyle = "#dc2626"; ctx.fillRect(140, 160-hExp, 70, hExp);
+      ctx.fillStyle = "#475569"; ctx.font="13px system-ui";
+      ctx.fillText("Доходы", 55, 178); ctx.fillText("Расходы", 155, 178);
+    }
+
+    function drawCats(cats){
+      const c = document.getElementById("cat-chart"); const ctx = c.getContext("2d");
+      const dpr = window.devicePixelRatio||1; const r = c.parentElement.getBoundingClientRect();
+      c.width = r.width*dpr; c.height = 200*dpr; ctx.scale(dpr,dpr); ctx.clearRect(0,0,r.width,200);
+      const list = document.getElementById("cat-summary"); list.innerHTML="";
+      const colors=["#1d4ed8","#059669","#b45309","#7c3aed","#db2777"];
+      let total=0; cats.forEach(x=> total += x.amount_minor);
+      let angle = -Math.PI/2;
+      const cx = r.width/2, cy = 120, radius = 80;
+      for(let i=0;i<cats.length;i++){
+        const cat = cats[i]; const slice = total ? (cat.amount_minor/total)*2*Math.PI : 0;
+        ctx.fillStyle = colors[i%colors.length];
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,radius,angle,angle+slice); ctx.closePath(); ctx.fill();
+        angle += slice;
+        const row = document.createElement("div"); row.style="display:flex; justify-content:space-between; font-size:0.82rem; margin-bottom:0.25rem;";
+        row.innerHTML = `<span style="display:inline-block;width:10px;height:10px;background:${colors[i%colors.length]};border-radius:50%;margin-right:0.5rem"></span>${escape(cat.category_name||"?" )} <b>${fmt(cat.amount_minor)}</b>`;
+        list.appendChild(row);
+      }
+      if(!cats.length){ list.innerHTML = `<div style="color:var(--color-text-muted)">Нет расходов</div>`; }
+    }
+
+    function escape(s){ const d=document.createElement("div"); d.textContent=s===null||s===undefined?"":s; return d.innerHTML; }
+    load();
+  })();
+</script>
+{% endblock %}
