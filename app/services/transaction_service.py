@@ -258,12 +258,15 @@ class TransactionService:
         return expense, income
 
     async def update(self, transaction_id: int, **fields) -> Transaction | None:
-        # Rebalance is complex; for edits we reject balance-impacting changes
-        # and support description/notes/date/category/tags edits only.
+        # Edits that don't touch the amount are simple field updates.
+        # Amount edits rebalance the affected account(s). Transfer amount edits
+        # are rejected because both legs must move in lockstep.
         transaction = await self.transactions.get(transaction_id)
         if transaction is None:
             return None
         allowed = {"description", "notes", "transaction_date", "category_id", "tags"}
+        if "amount" in fields:
+            allowed.add("amount")
         update_fields = {}
         for key, value in fields.items():
             if key in allowed:
@@ -273,6 +276,46 @@ class TransactionService:
                 ",".join(self._parse_tags(update_fields["tags"])) if update_fields["tags"] else None
             )
         update_fields["updated_at"] = datetime.utcnow()
+
+        # --- Amount rebalancing -------------------------------------------
+        amount_minor = update_fields.get("amount")
+        if amount_minor is not None:
+            # The API passes amount as a human-readable string; internal
+            # callers may pass raw minor units. Distinguish the two.
+            if isinstance(amount_minor, str):
+                amount_minor = to_minor_units(amount_minor)
+            else:
+                amount_minor = int(amount_minor)
+            validate_positive(amount_minor, "amount")
+            if transaction.type == "transfer":
+                raise MoneyError(
+                    "transfer amount cannot be edited; edit the linked legs separately"
+                )
+            account = await self.accounts.get(transaction.account_id)
+            if account is None:
+                raise MoneyError(f"account {transaction.account_id} does not exist")
+            old_delta = transaction.amount if transaction.type == "income" else -transaction.amount
+            new_delta = amount_minor if transaction.type == "income" else -amount_minor
+            adjustment = new_delta - old_delta
+            # Negative balance guard for non-credit accounts.
+            if account.type != "credit" and account.current_balance + adjustment < 0:
+                raise MoneyError("insufficient funds")
+            account.current_balance += adjustment
+            self.session.add(account)
+            update_fields["amount"] = amount_minor
+
+        # --- Category compatibility ---------------------------------------
+        new_category_id = update_fields.get("category_id")
+        if new_category_id is not None and new_category_id != transaction.category_id:
+            from app.repositories.category_repository import CategoryRepository
+
+            cats = CategoryRepository(self.session)
+            category = await cats.get(new_category_id)
+            if category is None:
+                raise MoneyError(f"category {new_category_id} does not exist")
+            if transaction.type in ("income", "expense") and category.type != transaction.type:
+                raise MoneyError(f"category '{category.name}' is a {category.type} category")
+
         return await self.transactions.update(transaction_id, **update_fields)
 
     async def delete(self, transaction_id: int) -> bool:
@@ -286,18 +329,35 @@ class TransactionService:
                 account.current_balance -= transaction.amount
             elif transaction.type == "expense":
                 account.current_balance += transaction.amount
-            # transfers are handled by deleting both legs
+            elif transaction.type == "transfer":
+                # A transfer leg either decreased (source) or increased
+                # (destination) the account balance. The source leg is created
+                # first (lower id) in create_transfer(), so we can determine
+                # direction by comparing ids with the linked leg.
+                linked = (
+                    await self.transactions.get(transaction.linked_transaction_id)
+                    if transaction.linked_transaction_id
+                    else None
+                )
+                if linked is not None and transaction.id < linked.id:
+                    # Source leg: balance was decreased, reverse by increasing.
+                    account.current_balance += transaction.amount
+                else:
+                    # Destination leg: balance was increased, reverse by decreasing.
+                    account.current_balance -= transaction.amount
             self.session.add(account)
-        # If transfer, delete the linked leg too.
+        # If transfer, delete the linked leg too and reverse its balance.
         if transaction.type == "transfer" and transaction.linked_transaction_id:
             linked = await self.transactions.get(transaction.linked_transaction_id)
             if linked is not None:
                 linked_account = await self.accounts.get(linked.account_id)
                 if linked_account is not None:
-                    if linked.type == "income":
-                        linked_account.current_balance -= linked.amount
-                    elif linked.type == "expense":
+                    if linked.id < transaction.id:
+                        # Linked is source: balance was decreased, reverse by increasing.
                         linked_account.current_balance += linked.amount
+                    else:
+                        # Linked is destination: balance was increased, reverse by decreasing.
+                        linked_account.current_balance -= linked.amount
                     self.session.add(linked_account)
                 await self.transactions.delete(linked.id)
         await self.transactions.delete(transaction.id)

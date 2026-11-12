@@ -187,6 +187,7 @@ async def update_transaction(
     transaction_id: int,
     description: str | None = Form(None),
     notes: str | None = Form(None),
+    amount: str | None = Form(None),
     transaction_date: str | None = Form(None),
     category_id: str | None = Form(None),
     tags: str | None = Form(None),
@@ -198,6 +199,8 @@ async def update_transaction(
         fields["description"] = description
     if notes is not None:
         fields["notes"] = notes
+    if amount is not None:
+        fields["amount"] = amount
     if transaction_date is not None:
         fields["transaction_date"] = _parse_required_date(transaction_date)
     if category_id is not None:

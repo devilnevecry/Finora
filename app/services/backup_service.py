@@ -14,7 +14,10 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from sqlalchemy import create_engine
+
 from app.config import get_settings
+from app.database import Base
 
 settings = get_settings()
 
@@ -178,6 +181,14 @@ def restore_backup(path: str) -> dict:
     os.close(fd)
 
     try:
+        # Create the schema in the empty temp database before inserting data.
+        tmp_url = "sqlite:///" + tmp_db.replace("\\", "/")
+        sync_engine = create_engine(tmp_url)
+        try:
+            Base.metadata.create_all(sync_engine)
+        finally:
+            sync_engine.dispose()
+
         conn = sqlite3.connect(tmp_db)
         try:
             conn.execute("PRAGMA foreign_keys = ON")

@@ -44,9 +44,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             token = secrets.token_urlsafe(32)
             session["csrf_token"] = token
 
-        if request.method in MUTATING_METHODS and not self._is_exempt(
-            request.url.path
-        ):
+        if request.method in MUTATING_METHODS and not self._is_exempt(request.url.path):
             # 1. Custom header (fetch / JS clients).
             header = request.headers.get("x-csrf-token")
             if _tokens_match(header, token):
