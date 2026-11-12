@@ -111,7 +111,7 @@
     function openForm(){
       const body = document.getElementById("bud-modal-body");
       body.innerHTML = `
-        <form id="bud-form">
+        <form id="bud-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <div class="form-field"><label data-i18n="common.category">Категория</label><select name="category_id"><option value="" data-i18n="common.no_data">Общий бюджет</option></select></div>
           <div class="form-field"><label>Начало периода</label><input type="date" name="period_start" required></div>
           <div class="form-field"><label>Конец периода</label><input type="date" name="period_end" required></div>

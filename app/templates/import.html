@@ -13,7 +13,7 @@
 <div class="card-grid" style="grid-template-columns: 1fr 1fr;">
   <div class="card">
     <h2 style="margin-bottom:0.75rem; font-size:1.05rem" data-i18n="import.title">Импорт CSV</h2>
-    <form id="import-form" enctype="multipart/form-data">
+    <form id="import-form" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <div class="form-field"><label data-i18n="import.upload">Файл CSV</label><input type="file" name="file" accept=".csv" required></div>
       <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
         <button type="button" class="btn btn-primary" id="btn-import-preview" data-i18n="import.preview">Предпросмотр</button>
@@ -23,7 +23,7 @@
   </div>
   <div class="card">
     <h2 style="margin-bottom:0.75rem; font-size:1.05rem" data-i18n="export.title">Экспорт CSV</h2>
-    <form id="export-form">
+    <form id="export-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <div class="form-field"><label data-i18n="common.date">С</label><input type="date" name="date_from"></div>
       <div class="form-field"><label data-i18n="common.date">По</label><input type="date" name="date_to"></div>
       <div class="form-field"><label data-i18n="common.account">Счёт</label><input type="number" name="account_id" data-i18n-placeholder="common.account"></div>

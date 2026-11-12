@@ -78,7 +78,7 @@
     function openForm(a = null){
       const body = document.getElementById("acc-modal-body");
       body.innerHTML = `
-        <form id="acc-form">
+        <form id="acc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <input type="hidden" name="id" value="${a ? a.id : ''}">
           <div class="form-field"><label data-i18n="common.description">Название</label><input type="text" name="name" required value="${escape(a ? a.name : '')}" data-i18n-placeholder="common.description"></div>
           <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type" required>
@@ -88,7 +88,7 @@
             <option value="credit" ${a&&a.type==='credit'?'selected':''} data-i18n="account.credit">Кредитный счёт</option>
             <option value="custom" ${a&&a.type==='custom'?'selected':''} data-i18n="account.custom">Другой</option>
           </select></div>
-          <div class="form-field"><label>Валюта</label><input type="text" name="currency" value="${escape(a ? a.currency : '$')}" maxlength="3" pattern="[A-Z]{3}" data-i18n-placeholder="common.currency"></div>
+          <div class="form-field"><label>Валюта</label><input type="text" name="currency" value="${escape(a ? a.currency : window.FINORA.baseCurrency)}" maxlength="3" pattern="[A-Z]{3}" data-i18n-placeholder="common.currency"></div>
           <div class="form-field"><label>Открытый баланс</label><input type="text" name="opening_balance" value="${escape(a ? a.opening_balance_minor/100 : '0')}" data-i18n-placeholder="common.amount"></div>
           <div class="form-field"><label data-i18n="common.notes">Описание</label><textarea name="description" rows="2" data-i18n-placeholder="common.notes">${escape(a ? a.description || '' : '')}</textarea></div>
           <div style="display:flex; gap:0.5rem; margin-top:1rem;">

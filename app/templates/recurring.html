@@ -81,7 +81,7 @@
     function openForm(r = null){
       const body = document.getElementById("rec-modal-body");
       body.innerHTML = `
-        <form id="rec-form">
+        <form id="rec-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <input type="hidden" name="id" value="${r ? r.id : ''}">
           <div class="form-field"><label data-i18n="common.account">Счёт</label><select name="account_id" required><option value="" data-i18n="common.no_data">Выберите счёт</option></select></div>
           <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type" required>

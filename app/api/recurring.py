@@ -61,11 +61,12 @@ async def create_recurring(
     interval_count: int = Form(1),
     start_date: str = Form(...),
     end_date: str | None = Form(None),
-    category_id: int | None = Form(None),
+    category_id: str | None = Form(None),
     notes: str | None = Form(None),
     tags: str | None = Form(None),
     service: RecurringService = Depends(_service),
 ):
+    category_id = int(category_id) if category_id else None
     try:
         start = date.fromisoformat(start_date)
         end = date.fromisoformat(end_date) if end_date else None
@@ -101,7 +102,7 @@ async def update_recurring(
     amount: str | None = Form(None),
     description: str | None = Form(None),
     interval: str | None = Form(None),
-    interval_count: int | None = Form(None),
+    interval_count: str | None = Form(None),
     end_date: str | None = Form(None),
     service: RecurringService = Depends(_service),
 ):
@@ -116,8 +117,8 @@ async def update_recurring(
         fields["description"] = description
     if interval is not None:
         fields["interval"] = interval
-    if interval_count is not None:
-        fields["interval_count"] = interval_count
+    if interval_count is not None and interval_count != "":
+        fields["interval_count"] = int(interval_count)
     if end_date is not None:
         try:
             fields["end_date"] = date.fromisoformat(end_date)

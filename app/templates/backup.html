@@ -21,7 +21,7 @@
   <div class="card">
     <h2 style="margin-bottom:0.75rem; font-size:1.05rem">Восстановление</h2>
     <p style="font-size:0.86rem; color:var(--color-text-muted); margin-bottom:0.75rem;">Выберите файл и подтвердите восстановление. Текущая база будет заменена.</p>
-    <form id="restore-form">
+    <form id="restore-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
       <div class="form-field"><label>Файл резервной копии</label><select id="restore-select" required></select></div>
       <div class="form-field"><label>Подтверждение</label><input type="text" name="confirm" placeholder="yes" required data-i18n-placeholder="backup.restore_confirm"></div>
       <div style="margin-top:0.75rem;">

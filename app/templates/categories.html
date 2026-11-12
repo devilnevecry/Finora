@@ -82,7 +82,7 @@
     function openForm(c = null){
       const body = document.getElementById("cat-modal-body");
       body.innerHTML = `
-        <form id="cat-form">
+        <form id="cat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <input type="hidden" name="id" value="${c ? c.id : ''}">
           <div class="form-field"><label data-i18n="common.description">Название</label><input type="text" name="name" required value="${escape(c ? c.name : '')}" data-i18n-placeholder="common.description"></div>
           <div class="form-field"><label data-i18n="common.type">Тип</label><select name="type" required>

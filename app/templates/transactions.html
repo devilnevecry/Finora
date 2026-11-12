@@ -183,7 +183,7 @@
       const isExpense = tx ? tx.type === "expense" : false;
       const title = tx ? window.i18n.t("common.edit") : (isExpense ? window.i18n.t("tx.add_expense") : window.i18n.t("tx.add_income"));
       body.innerHTML = `
-        <form id="tx-form">
+        <form id="tx-form"><input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
           <input type="hidden" name="id" value="${tx ? tx.id : ''}">
           <div class="form-field"><label data-i18n="common.account">Счёт</label><select name="account_id" required><option value="" data-i18n="common.no_data">Выберите счёт</option></select></div>
           <div class="form-field"><label data-i18n="common.category">Категория</label><select name="category_id"><option value="" data-i18n="common.no_data">Без категории</option></select></div>

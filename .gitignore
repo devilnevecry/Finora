@@ -64,3 +64,6 @@ htmlcov/
 
 # Finora application data (runtime)
 app/data/finora.db
+
+# E2E test artifacts
+tests_e2e/

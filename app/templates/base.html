@@ -101,6 +101,8 @@
     window.FINORA = {
       csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || "",
       lang: document.querySelector('meta[name="app-language"]')?.content || "ru",
+      baseCurrency: "{{ base_currency }}",
+      currencySymbol: "{{ currency_symbol }}",
       baseUrl: window.location.origin,
     };
   </script>

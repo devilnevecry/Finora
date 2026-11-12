@@ -88,11 +88,12 @@ async def create_income(
     amount: str = Form(...),
     transaction_date: str = Form(...),
     description: str = Form(...),
-    category_id: int | None = Form(None),
+    category_id: str | None = Form(None),
     notes: str | None = Form(None),
     tags: str | None = Form(None),
     service: TransactionService = Depends(_service),
 ):
+    category_id = int(category_id) if category_id else None
     try:
         tx = await service.create_income(
             account_id=account_id,
@@ -116,11 +117,12 @@ async def create_expense(
     amount: str = Form(...),
     transaction_date: str = Form(...),
     description: str = Form(...),
-    category_id: int | None = Form(None),
+    category_id: str | None = Form(None),
     notes: str | None = Form(None),
     tags: str | None = Form(None),
     service: TransactionService = Depends(_service),
 ):
+    category_id = int(category_id) if category_id else None
     try:
         tx = await service.create_expense(
             account_id=account_id,
@@ -186,10 +188,11 @@ async def update_transaction(
     description: str | None = Form(None),
     notes: str | None = Form(None),
     transaction_date: str | None = Form(None),
-    category_id: int | None = Form(None),
+    category_id: str | None = Form(None),
     tags: str | None = Form(None),
     service: TransactionService = Depends(_service),
 ):
+    category_id = int(category_id) if category_id else None
     fields = {}
     if description is not None:
         fields["description"] = description
@@ -221,7 +224,14 @@ async def delete_transaction(transaction_id: int, service: TransactionService = 
 def _parse_date(value: str | None) -> datetime | None:
     if not value:
         return None
-    for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d.%m.%Y", "%d/%m/%Y"):
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%d.%m.%Y",
+        "%d/%m/%Y",
+    ):
         try:
             return datetime.strptime(value, fmt)
         except ValueError:

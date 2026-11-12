@@ -43,12 +43,13 @@ async def list_budgets(
 
 @router.post("")
 async def create_budget(
-    category_id: int | None = Form(None),
+    category_id: str | None = Form(None),
     period_start: str = Form(...),
     period_end: str = Form(...),
     amount_limit: str = Form(...),
     service: BudgetService = Depends(_service),
 ):
+    category_id = int(category_id) if category_id else None
     try:
         start = date.fromisoformat(period_start)
         end = date.fromisoformat(period_end)

@@ -85,6 +85,8 @@ def create_app() -> FastAPI:
     templates.env.globals["get_flashed_messages"] = get_flashed_messages
     templates.env.globals["lang"] = settings.default_language
     templates.env.globals["theme"] = ""
+    templates.env.globals["base_currency"] = settings.base_currency
+    templates.env.globals["currency_symbol"] = settings.currency_symbol
 
     # UI routes
     @app.get("/", include_in_schema=False)
