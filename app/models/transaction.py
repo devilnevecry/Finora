@@ -45,13 +45,13 @@ class Transaction(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[str | None] = mapped_column(Text, nullable=True)  # comma-separated legacy field
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, nullable=False, default=dt.datetime.utcnow
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC)
     )
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=dt.datetime.utcnow,
-        onupdate=dt.datetime.utcnow,
+        default=lambda: dt.datetime.now(dt.UTC),
+        onupdate=lambda: dt.datetime.now(dt.UTC),
     )
     linked_transaction_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

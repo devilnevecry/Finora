@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +34,7 @@ class CategoryService:
             color=color,
             icon=icon,
             is_archived=False,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
         )
         return await self.categories.add(category)
 

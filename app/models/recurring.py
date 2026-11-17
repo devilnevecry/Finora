@@ -52,13 +52,13 @@ class RecurringTransaction(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_run_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, nullable=False, default=dt.datetime.utcnow
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC)
     )
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=dt.datetime.utcnow,
-        onupdate=dt.datetime.utcnow,
+        default=lambda: dt.datetime.now(dt.UTC),
+        onupdate=lambda: dt.datetime.now(dt.UTC),
     )
 
     account: Mapped[Account] = relationship("Account")

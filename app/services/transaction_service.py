@@ -8,7 +8,7 @@ are never counted as income or expense in analytics.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -147,8 +147,8 @@ class TransactionService:
             description=description,
             notes=notes,
             tags=",".join(self._parse_tags(tags)) if tags else None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             linked_transaction_id=None,
         )
         self.session.add(transaction)
@@ -208,8 +208,8 @@ class TransactionService:
             description=description,
             notes=notes,
             tags=",".join(self._parse_tags(tags)) if tags else None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             linked_transaction_id=None,
         )
         income = Transaction(
@@ -221,8 +221,8 @@ class TransactionService:
             description=description,
             notes=notes,
             tags=",".join(self._parse_tags(tags)) if tags else None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
             linked_transaction_id=None,
         )
         self.session.add(expense)
@@ -275,7 +275,7 @@ class TransactionService:
             update_fields["tags"] = (
                 ",".join(self._parse_tags(update_fields["tags"])) if update_fields["tags"] else None
             )
-        update_fields["updated_at"] = datetime.utcnow()
+        update_fields["updated_at"] = datetime.now(UTC)
 
         # --- Amount rebalancing -------------------------------------------
         amount_minor = update_fields.get("amount")

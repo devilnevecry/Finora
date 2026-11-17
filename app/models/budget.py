@@ -27,7 +27,7 @@ class Budget(Base):
     period_end: Mapped[dt.date] = mapped_column(Date, nullable=False)
     amount_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # minor units
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, nullable=False, default=dt.datetime.utcnow
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC)
     )
 
     category: Mapped[Category | None] = relationship("Category", back_populates="budgets")

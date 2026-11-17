@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.repositories.transaction_repository import TransactionRepository
 
@@ -73,5 +73,5 @@ class ExportService:
             )
 
         payload = output.getvalue().encode("utf-8")
-        filename = f"finora_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"finora_export_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.csv"
         return filename, payload, "text/csv; charset=utf-8"

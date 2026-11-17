@@ -12,7 +12,7 @@ import os
 import sqlite3
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import create_engine
 
@@ -91,7 +91,7 @@ def create_backup(filename: str | None = None) -> dict:
     if not os.path.exists(db_path):
         raise BackupError("no database file to back up")
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     backup_name = filename or f"finora_backup_{timestamp}.json"
     backup_path = os.path.join(data_dir, backup_name)
 
@@ -112,7 +112,7 @@ def create_backup(filename: str | None = None) -> dict:
         conn.close()
 
     metadata = BackupMetadata(
-        created_at=datetime.utcnow().isoformat() + "Z",
+        created_at=datetime.now(UTC).isoformat() + "Z",
         base_currency=settings.base_currency,
         tables=tables,
         row_counts=row_counts,

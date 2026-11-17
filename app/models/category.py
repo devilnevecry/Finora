@@ -27,7 +27,7 @@ class Category(Base):
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, nullable=False, default=dt.datetime.utcnow
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC)
     )
 
     transactions: Mapped[list[Transaction]] = relationship("Transaction", back_populates="category")

@@ -9,7 +9,7 @@ including across application restarts.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,8 +103,8 @@ class RecurringService:
             next_run_date=start_date,
             is_active=True,
             last_run_date=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         return await self.recurring.add(recurring)
 

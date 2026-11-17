@@ -1,8 +1,8 @@
-"""Budget service."""
+﻿"""Budget service."""
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,7 @@ class BudgetService:
             period_start=period_start,
             period_end=period_end,
             amount_limit=limit_minor,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
         )
         return await self.budgets.add(budget)
 
@@ -103,3 +103,4 @@ class BudgetService:
             "percent": round(percent, 2),
             "overspent": actual_minor > limit_minor,
         }
+

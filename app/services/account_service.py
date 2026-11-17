@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,7 +50,7 @@ class AccountService:
             opening_balance=opening_minor,
             current_balance=opening_minor,
             description=description or None,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             is_active=True,
             is_archived=False,
         )

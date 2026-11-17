@@ -29,7 +29,7 @@ class Account(Base):
     current_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, nullable=False, default=dt.datetime.utcnow
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC)
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

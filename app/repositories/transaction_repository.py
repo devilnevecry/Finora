@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,7 +94,7 @@ class TransactionRepository:
         for key, value in fields.items():
             if hasattr(transaction, key):
                 setattr(transaction, key, value)
-        transaction.updated_at = datetime.utcnow()
+        transaction.updated_at = datetime.now(UTC)
         await self.session.flush()
         await self.session.refresh(transaction)
         return transaction
