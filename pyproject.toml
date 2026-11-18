@@ -24,6 +24,13 @@ classifiers = [
 [project.scripts]
 finora = "app.main:run"
 
+# Explicit discovery: without this, setuptools' flat-layout auto-detection sees
+# both `app` and `tests_e2e` as top-level packages and aborts `pip install -e .`.
+# Only the application package belongs in the distribution; `tests/` and
+# `tests_e2e/` are development-only and stay out of the installed package.
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
